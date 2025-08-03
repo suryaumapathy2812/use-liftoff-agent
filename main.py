@@ -15,23 +15,24 @@ from src.metadata_transformer import transform_ui_metadata
 load_dotenv()
 
 
-async def start_recording_and_transcript(ctx: agents.JobContext, session: AgentSession) -> str:
+async def start_recording_and_transcript(ctx: agents.JobContext, session: AgentSession):
     """Start recording and set up transcript tracking"""
     egress_id = None
-    
+
     try:
         lkapi = api.LiveKitAPI(
             url=os.getenv("LIVEKIT_URL"),
             api_key=os.getenv("LIVEKIT_API_KEY"),
-            api_secret=os.getenv("LIVEKIT_API_SECRET")
+            api_secret=os.getenv("LIVEKIT_API_SECRET"),
         )
-        
+
         # Generate filename with timestamp
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        room_name_clean = ctx.room.name.replace('/', '_').replace('\\', '_')
+        room_name_clean = ctx.room.name.replace("/", "_").replace("\\", "_")
         filename = f"session_{room_name_clean}_{timestamp}"
-        
+
         # Configure S3 upload (supports MinIO)
         s3_config = api.S3Upload(
             bucket=os.getenv("AWS_BUCKET_NAME"),
@@ -41,54 +42,57 @@ async def start_recording_and_transcript(ctx: agents.JobContext, session: AgentS
             endpoint=os.getenv("AWS_ENDPOINT_URL"),  # For MinIO
             force_path_style=True,  # Required for MinIO compatibility
         )
-        
+
         # Create egress request for audio recording
         req = api.RoomCompositeEgressRequest(
             room_name=ctx.room.name,
-            audio_only=True,  # Audio-only recording for voice sessions
+            layout="speaker",
+            preset=api.EncodingOptionsPreset.H264_720P_30,
+            audio_only=False,
             file_outputs=[
                 api.EncodedFileOutput(
                     file_type=api.EncodedFileType.OGG,
-                    filepath=f"recordings/audio/{filename}.ogg",
+                    filepath=f"{s3_config.bucket}/recordings/audio/{filename}.ogg",
                     s3=s3_config,
                 )
             ],
         )
-        
+
         egress_info = await lkapi.egress.start_room_composite_egress(req)
         egress_id = egress_info.egress_id
-        
+
         print(f"✅ Started recording: {egress_id}")
         print(f"📁 Audio file: recordings/audio/{filename}.ogg")
-        
+
         # Set up transcript saving callback
         async def save_transcript():
             try:
                 # Get conversation history
                 transcript = session.history.to_dict()
-                
+
                 # Save transcript as JSON
                 import json
+
                 transcript_filename = f"recordings/transcripts/{filename}.json"
-                
+
                 # In a real implementation, you'd upload this to your storage
                 # For now, just log the transcript info
                 print(f"📝 Transcript saved: {transcript_filename}")
                 print(f"💬 Total messages: {len(transcript.get('messages', []))}")
-                
+
                 # Optional: Print some transcript content for debugging
-                if transcript.get('messages'):
+                if transcript.get("messages"):
                     print(f"📊 Sample messages: {transcript['messages'][:2]}")
-                
+
             except Exception as e:
                 print(f"❌ Failed to save transcript: {e}")
-        
+
         # Add shutdown callback for transcript saving
         ctx.add_shutdown_callback(save_transcript)
-        
+
         await lkapi.aclose()
         return egress_id
-        
+
     except Exception as e:
         print(f"❌ Failed to start recording: {e}")
         return None
@@ -100,7 +104,13 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     await ctx.connect(auto_subscribe=agents.AutoSubscribe.SUBSCRIBE_ALL)
 
     print(f"Connected to room: {ctx.room.name}")
-    print(f"Room SID: {await ctx.room.sid()}")
+    try:
+        room_sid = (
+            await ctx.room.sid if hasattr(ctx.room.sid, "__await__") else ctx.room.sid
+        )
+        print(f"Room SID: {room_sid}")
+    except:
+        print("Room SID: Not available yet")
 
     # Now we can access the metadata
     metadata_str = ctx.room.metadata
@@ -162,10 +172,29 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     )
 
     # Start recording and transcript tracking
-    recording_id = await start_recording_and_transcript(ctx, session)
-    
-    # Use agent-specific greeting
+    # await start_recording_and_transcript(ctx, session)
+
+    # Use agent-specific greeting (with retry for API readiness)
     await session.generate_reply(instructions=custom_agent.get_greeting_instruction())
+
+    # import asyncio
+
+    # for attempt in range(3):
+    #     try:
+    #         print(f"🎤 Generating greeting (attempt {attempt + 1}/3)...")
+    #         await session.generate_reply(
+    #             instructions=custom_agent.get_greeting_instruction()
+    #         )
+    #         print("✅ Greeting generated successfully")
+    #         break
+    #     except Exception as e:
+    #         print(f"⚠️ Greeting attempt {attempt + 1} failed: {e}")
+    #         if attempt < 2:  # Don't wait after the last attempt
+    #             await asyncio.sleep(2)  # Wait 2 seconds before retry
+    #         else:
+    #             print(
+    #                 "❌ All greeting attempts failed, continuing without initial greeting"
+    #             )
 
     # Start session time monitoring
     time_manager = SessionTimeManager(

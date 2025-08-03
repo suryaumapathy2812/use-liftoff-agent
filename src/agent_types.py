@@ -7,20 +7,12 @@ from datetime import datetime, timedelta
 class BaseSimplifiedAgent(Agent, ABC):
     """Base class for simplified description-based agents"""
     
-    # Default durations in minutes for each agent type
-    DEFAULT_DURATIONS = {
-        "interview": 30,
-        "presentation": 20,
-        "english_speaking": 25,
-        "general": 15
-    }
-    
-    def __init__(self, agent_type: str, description: str, gender: str = "female", duration_minutes: Optional[int] = None):
+    def __init__(self, agent_type: str, description: str, gender: str = "female", duration_minutes: int = 15):
         self.agent_type = agent_type
         self.description = description
         self.gender = gender
-        # Use provided duration or fall back to defaults
-        self.duration_minutes = duration_minutes or self.DEFAULT_DURATIONS.get(agent_type, 15)
+        # Duration is controlled by UI metadata
+        self.duration_minutes = duration_minutes
         self.start_time = None
         
         instructions = self._generate_instructions()
@@ -173,7 +165,7 @@ class SimplifiedAgentFactory:
     }
     
     @classmethod
-    def create_agent(cls, agent_type: str, description: str, gender: str = "female", duration_minutes: Optional[int] = None) -> BaseSimplifiedAgent:
+    def create_agent(cls, agent_type: str, description: str, gender: str = "female", duration_minutes: int = 15) -> BaseSimplifiedAgent:
         """Create an agent based on type and description"""
         agent_class = cls.AGENT_TYPES.get(agent_type, GeneralAgent)
         return agent_class(agent_type, description, gender, duration_minutes)
