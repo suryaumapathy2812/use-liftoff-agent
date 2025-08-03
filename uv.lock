@@ -507,6 +507,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "dotenv" },
+    { name = "google-genai" },
     { name = "livekit" },
     { name = "livekit-agents", extra = ["google"] },
     { name = "livekit-plugins-google" },
@@ -517,6 +518,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "google-genai", specifier = ">=1.28.0" },
     { name = "livekit", specifier = ">=1.0.12" },
     { name = "livekit-agents", extras = ["google"], specifier = ">=1.2.2" },
     { name = "livekit-plugins-google", specifier = ">=1.2.2" },
