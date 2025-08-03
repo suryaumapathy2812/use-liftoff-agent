@@ -1,0 +1,14 @@
+[project]
+name = "liftoff-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dotenv>=0.9.9",
+    "livekit>=1.0.12",
+    "livekit-agents[google]>=1.2.2",
+    "livekit-plugins-google>=1.2.2",
+    "livekit-plugins-noise-cancellation>=0.2.5",
+    "livekit-plugins-openai>=1.2.2",
+]
