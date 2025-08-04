@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 import random
+import logging
 from livekit.plugins import openai, google
 from livekit.agents import llm
 
 from google.genai import types
+
+logger = logging.getLogger(__name__)
 
 
 class BaseLLMProvider(ABC):
@@ -34,8 +37,11 @@ class GoogleLLMProvider(BaseLLMProvider):
 
     def get_random_voice_for_gender(self, gender: str) -> str:
         """Get a random voice for the specified gender"""
+        gender = gender.lower()
         voices = self.GENDER_VOICES.get(gender, self.GENDER_VOICES["female"])
-        return random.choice(voices)
+        selected_voice = random.choice(voices)
+        logger.info(f"Google voice selection: gender='{gender}', available={voices}, selected='{selected_voice}'")
+        return selected_voice
 
     def create_model(self, gender: str = "female") -> llm.RealtimeModel:
         voice = self.get_random_voice_for_gender(gender)
@@ -54,19 +60,27 @@ class OpenAILLMProvider(BaseLLMProvider):
     """OpenAI LLM provider"""
 
     GENDER_VOICES: Dict[str, List[str]] = {
-        "male": ["alloy", "onyx", "echo"],
+        "male": ["onyx", "echo"],  # Removed 'alloy' as it's more neutral
         "female": ["nova", "shimmer"],
     }
 
     def get_random_voice_for_gender(self, gender: str) -> str:
         """Get a random voice for the specified gender"""
+        gender = gender.lower()
         voices = self.GENDER_VOICES.get(gender, self.GENDER_VOICES["female"])
-        return random.choice(voices)
+        selected_voice = random.choice(voices)
+        logger.info(f"OpenAI voice selection: gender='{gender}', available={voices}, selected='{selected_voice}'")
+        return selected_voice
 
     def create_model(self, gender: str = "female") -> llm.RealtimeModel:
         voice = self.get_random_voice_for_gender(gender)
+        
+        print(f"OpenAI: Selected voice '{voice}' for gender '{gender}'")
 
-        return openai.realtime.RealtimeModel(voice=voice)
+        return openai.realtime.RealtimeModel(
+            voice=voice,
+            temperature=0.8,
+        )
 
 
 class LLMFactory:

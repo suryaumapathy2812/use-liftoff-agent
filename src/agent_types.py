@@ -4,7 +4,7 @@ from livekit.agents import Agent
 from datetime import datetime, timedelta
 
 
-class BaseSimplifiedAgent(Agent, ABC):
+class BaseAgent(Agent, ABC):
     """Base class for simplified description-based agents"""
     
     def __init__(self, agent_type: str, description: str, gender: str = "female", duration_minutes: int = 15):
@@ -55,7 +55,7 @@ class BaseSimplifiedAgent(Agent, ABC):
         return None
 
 
-class InterviewAgent(BaseSimplifiedAgent):
+class InterviewAgent(BaseAgent):
     """Simplified interview agent"""
     
     def _generate_instructions(self) -> str:
@@ -81,7 +81,7 @@ Important:
         return f"Introduce yourself as an interviewer and explain that you'll be conducting an interview based on: {self.description}. Make the candidate feel comfortable."
 
 
-class PresentationAgent(BaseSimplifiedAgent):
+class PresentationAgent(BaseAgent):
     """Simplified presentation skills agent"""
     
     def _generate_instructions(self) -> str:
@@ -107,7 +107,7 @@ Coaching approach:
         return f"Introduce yourself as a presentation coach and ask the student to tell you about their presentation topic: {self.description}. Be warm and encouraging."
 
 
-class EnglishSpeakingAgent(BaseSimplifiedAgent):
+class EnglishSpeakingAgent(BaseAgent):
     """Simplified English conversation agent"""
     
     def _generate_instructions(self) -> str:
@@ -133,7 +133,7 @@ Important:
         return f"Greet the student warmly and suggest having a conversation about: {self.description}. Start with an easy, open-ended question."
 
 
-class GeneralAgent(BaseSimplifiedAgent):
+class GeneralAgent(BaseAgent):
     """General purpose agent for any description"""
     
     def _generate_instructions(self) -> str:
@@ -154,7 +154,7 @@ Stay focused on the task described and be supportive throughout."""
         return f"Greet the user and explain that you'll help them with: {self.description}"
 
 
-class SimplifiedAgentFactory:
+class AgentFactory:
     """Factory to create agents based on type and description"""
     
     AGENT_TYPES = {
@@ -165,7 +165,7 @@ class SimplifiedAgentFactory:
     }
     
     @classmethod
-    def create_agent(cls, agent_type: str, description: str, gender: str = "female", duration_minutes: int = 15) -> BaseSimplifiedAgent:
+    def create_agent(cls, agent_type: str, description: str, gender: str = "female", duration_minutes: int = 15) -> BaseAgent:
         """Create an agent based on type and description"""
         agent_class = cls.AGENT_TYPES.get(agent_type, GeneralAgent)
         return agent_class(agent_type, description, gender, duration_minutes)

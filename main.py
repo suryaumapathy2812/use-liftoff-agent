@@ -3,17 +3,24 @@ import json
 import os
 from typing import Dict, Any
 
+import logging
+
 from livekit import agents, api
-from livekit.agents import AgentSession, RoomInputOptions, llm
-from livekit.plugins import noise_cancellation
+from livekit.agents import AgentSession, RoomInputOptions, llm, metrics, JobProcess
+from livekit.agents.voice import MetricsCollectedEvent
+
+from livekit.plugins import noise_cancellation, silero
 from src.llm_providers import LLMFactory
-from src.agent_types import SimplifiedAgentFactory
+from src.agent_types import AgentFactory
 from src.session_manager import SessionTimeManager
 from src.metadata_transformer import transform_ui_metadata
 
+logger = logging.getLogger("agent")
 
 load_dotenv()
 
+def prewarm(proc: JobProcess):
+    proc.userdata["vad"] = silero.VAD.load()
 
 async def start_recording_and_transcript(ctx: agents.JobContext, session: AgentSession):
     """Start recording and set up transcript tracking"""
@@ -105,9 +112,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     print(f"Connected to room: {ctx.room.name}")
     try:
-        room_sid = (
-            await ctx.room.sid if hasattr(ctx.room.sid, "__await__") else ctx.room.sid
-        )
+        room_sid = ctx.room.sid
         print(f"Room SID: {room_sid}")
     except:
         print("Room SID: Not available yet")
@@ -138,7 +143,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     duration_minutes: int = metadata.get("duration_minutes", 30)
 
     # Create the appropriate agent
-    custom_agent = SimplifiedAgentFactory.create_agent(
+    custom_agent = AgentFactory.create_agent(
         agent_type=agent_type,
         description=description,
         gender=gender,
@@ -152,13 +157,28 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     # Create LLM with gender-based voice
     llm_instance: llm.RealtimeModel = LLMFactory.create_llm(
-        provider_name="google",
+        provider_name="openai",
         gender=gender,
     )
 
     session: AgentSession = AgentSession(
         llm=llm_instance,
     )
+
+    # Metrics collection, to measure pipeline performance
+    # For more information, see https://docs.livekit.io/agents/build/metrics/
+    usage_collector = metrics.UsageCollector()
+
+    @session.on("metrics_collected")
+    def _on_metrics_collected(ev: MetricsCollectedEvent):
+        metrics.log_metrics(ev.metrics)
+        usage_collector.collect(ev.metrics)
+
+    async def log_usage():
+        summary = usage_collector.get_summary()
+        logger.info(f"Usage: {summary}")
+
+    ctx.add_shutdown_callback(log_usage)
 
     await session.start(
         agent=custom_agent,
@@ -172,29 +192,11 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     )
 
     # Start recording and transcript tracking
-    # await start_recording_and_transcript(ctx, session)
+    await start_recording_and_transcript(ctx, session)
 
     # Use agent-specific greeting (with retry for API readiness)
-    await session.generate_reply(instructions=custom_agent.get_greeting_instruction())
-
-    # import asyncio
-
-    # for attempt in range(3):
-    #     try:
-    #         print(f"🎤 Generating greeting (attempt {attempt + 1}/3)...")
-    #         await session.generate_reply(
-    #             instructions=custom_agent.get_greeting_instruction()
-    #         )
-    #         print("✅ Greeting generated successfully")
-    #         break
-    #     except Exception as e:
-    #         print(f"⚠️ Greeting attempt {attempt + 1} failed: {e}")
-    #         if attempt < 2:  # Don't wait after the last attempt
-    #             await asyncio.sleep(2)  # Wait 2 seconds before retry
-    #         else:
-    #             print(
-    #                 "❌ All greeting attempts failed, continuing without initial greeting"
-    #             )
+    handle = session.generate_reply(instructions=custom_agent.get_greeting_instruction())
+    await handle
 
     # Start session time monitoring
     time_manager = SessionTimeManager(
@@ -206,4 +208,4 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
 
 if __name__ == "__main__":
-    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
+    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint,  prewarm_fnc=prewarm))
