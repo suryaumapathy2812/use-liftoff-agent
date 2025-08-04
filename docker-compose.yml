@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.13"
+    environment:
+      # LiveKit configuration
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+
+      # Google AI configuration
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+
+      # OpenAI configuration (if needed)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    volumes:
+      # Mount .env file for local development
+      - ./.env:/home/appuser/.env:ro
+    # networks:
+    #   - livekit
+
+  minio:
+    image: minio/minio:latest
+    container_name: dev_minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_DEFAULT_BUCKETS: use-liftoff
+      MINIO_REGION: us-east-1
+      MINIO_API_CORS_ALLOW_ORIGIN: '*'
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./.docker/minio_data:/data
+    command: server /data --console-address ":9001"
+
+
+# networks:
+#   livekit:
+#     external: true

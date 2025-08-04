@@ -78,6 +78,7 @@ class OpenAILLMProvider(BaseLLMProvider):
         print(f"OpenAI: Selected voice '{voice}' for gender '{gender}'")
 
         return openai.realtime.RealtimeModel(
+            model="gpt-4o-mini-realtime-preview-2024-12-17",
             voice=voice,
             temperature=0.8,
         )
